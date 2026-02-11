@@ -82,6 +82,21 @@ def parse_args(argv=None):
         "--dir", default=None, metavar="DIR",
         help="Directory to hold the cluster data (default: tempfile under /tmp, tmpfs)",
     )
+    parser.add_argument(
+        "--monitoring", action="store_true",
+        help="Start the scylla-monitoring stack (Prometheus/Grafana/Alertmanager) "
+             "and print the Grafana URL",
+    )
+    parser.add_argument(
+        "--monitoring-dir", default=None,
+        help="Path to a scylla-monitoring checkout (default: SCYLLA_MONITORING_DIR "
+             "env var or ~/.ccm/scylla-monitoring)",
+    )
+    parser.add_argument(
+        "--keep", action="store_true",
+        help="Keep the cluster running after the run instead of removing it "
+             "(useful with --monitoring to inspect Grafana/Prometheus)",
+    )
     return parser.parse_args(argv)
 
 
@@ -124,6 +139,14 @@ def main():
         )
 
         cluster.populate(topology)
+
+        # populate() scales the per-node "wait for binary proto" timeout with
+        # cluster size (up to ~23 min for 63 nodes); cap it so a node stuck
+        # after a failed bootstrap (e.g. streaming error) doesn't hang the
+        # whole run for that long.
+        cluster.default_wait_for_binary_proto = min(
+            cluster.default_wait_for_binary_proto, 600
+        )
 
         total_nodes = len(cluster.nodelist())
         print(f"Populated {total_nodes} nodes")
@@ -182,11 +205,28 @@ def main():
 
         running = sum(1 for n in nodes if n.is_running())
         print(f"Nodes UP: {running}/{total_nodes}")
+
+        if args.monitoring:
+            from ccmlib.scylla_monitoring import MonitoringStack
+            stack = MonitoringStack(
+                cluster,
+                monitoring_dir=args.monitoring_dir,
+            )
+            stack.start()
+            stack.update_targets()
+            print(f"Monitoring: Grafana {stack.grafana_url()}, "
+                  f"Prometheus {stack.prometheus_url()}")
     finally:
         if cluster is not None:
-            print("\nCleaning up...")
-            cluster.remove()
-            print("Done.")
+            if failures:
+                print(f"\n{failures} node(s) failed; skipping cleanup so logs can be "
+                      f"inspected under {test_dir}")
+            elif args.keep:
+                print(f"\n--keep set; leaving cluster running under {test_dir}")
+            else:
+                print("\nCleaning up...")
+                cluster.remove()
+                print("Done.")
 
     return 1 if failures else 0
 

@@ -1699,7 +1699,7 @@ class ScyllaPodmanCluster(ScyllaCluster):
                 )
 
     def remove(
-        self, node=None, wait_other_notice=False, other_nodes=None, remove_node_dir=True
+        self, node=None, wait_other_notice=False, other_nodes=None, remove_node_dir=True, keep_monitoring=False
     ):
         """Remove the cluster or a single node: stop containers, remove networks."""
         if node is not None:
@@ -1712,6 +1712,7 @@ class ScyllaPodmanCluster(ScyllaCluster):
                 wait_other_notice=wait_other_notice,
                 other_nodes=other_nodes,
                 remove_node_dir=remove_node_dir,
+                keep_monitoring=keep_monitoring,
             )
             node.remove()
         else:
@@ -1753,6 +1754,7 @@ class ScyllaPodmanCluster(ScyllaCluster):
                     wait_other_notice=wait_other_notice,
                     other_nodes=other_nodes,
                     remove_node_dir=remove_node_dir,
+                    keep_monitoring=keep_monitoring,
                 )
             finally:
                 if self.network_topology:
@@ -1783,6 +1785,11 @@ class ScyllaPodmanCluster(ScyllaCluster):
             "ipprefix": self.ipprefix,
             "docker_image": self.podman_image,
             "pinning": self.pinning,
+            "monitoring_enabled": self.monitoring_enabled,
+            "monitoring_dir": self.monitoring_dir,
+            "grafana_port": self.grafana_port,
+            "prometheus_port": self.prometheus_port,
+            "alertmanager_port": self.alertmanager_port,
         }
         if self.network_topology:
             cluster_config["network_topology"] = self.network_topology.to_dict()
