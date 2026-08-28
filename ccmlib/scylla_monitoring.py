@@ -808,14 +808,13 @@ class MonitoringStack:
             }
         ]
 
-        Only includes nodes with status UP or DECOMMISSIONED (still running).
-        Excludes DOWN and UNINITIALIZED nodes.
+        Includes any node whose container is running, regardless of gossip
+        status - the IP is known and scrapable as soon as the process starts,
+        without waiting for it to join the ring.
         """
-        from ccmlib.node import Status
-
         dc_targets = {}
         for node in self.cluster.nodelist():
-            if node.status not in (Status.UP, Status.DECOMMISSIONED):
+            if not node.is_running():
                 continue
             dc = node.data_center or "datacenter1"
             dc_targets.setdefault(dc, []).append(node.address())
